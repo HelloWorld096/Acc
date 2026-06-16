@@ -381,10 +381,10 @@
 
     <div class="filters">
         <button class="filter-pill active" onclick="applyFilter('all')" id="f-all">All <span class="pill-count" id="c-all">0</span></button>
-        <button class="filter-pill" onclick="applyFilter('active')" id="f-active">Active <span class="pill-count" id="c-active">0</span></button>
-        <button class="filter-pill" onclick="applyFilter('banned')" id="f-banned">Banned <span class="pill-count" id="c-banned">0</span></button>
-        <button class="filter-pill" onclick="applyFilter('no-data')" id="f-nodata">No Data <span class="pill-count" id="c-nodata">0</span></button>
-        <button class="filter-pill" onclick="applyFilter('unknown')" id="f-unknown">Unknown <span class="pill-count" id="c-unknown">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('active')" id="f-active">Active <span class="pill-count" id="c-all-active">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('banned')" id="f-banned">Banned <span class="pill-count" id="c-all-banned">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('no-data')" id="f-nodata">No Data <span class="pill-count" id="c-all-nodata">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('unknown')" id="f-unknown">Unknown <span class="pill-count" id="c-all-unknown">0</span></button>
     </div>
 
     <div class="grid" id="grid">
@@ -393,9 +393,11 @@
 </div>
 
 <script>
-    // Dynamically derive environment context from target deployment URL parameters
+    // Global scope initializations
     let owner = "HelloWorld096";
     let repo = "Acc";
+    let dataList = [];
+    let activeFilter = "all";
 
     // Auto-parse parameters if hosted directly inside standard GitHub Pages domains
     const pathParts = window.location.pathname.split('/').filter(p => p);
@@ -511,7 +513,7 @@
                 card.className = "card is-unknown";
                 card.id = `card-${item.id}`;
                 card.target = "_blank";
-                card.href = `./${item.filename}`; // Direct relative anchor pathing for easy internal navigation
+                card.href = `./${item.filename}`; 
                 card.innerHTML = `
                     <div class="card-id">${item.filename}</div>
                     <div class="card-status">Loading</div>
@@ -533,7 +535,6 @@
                     if (fileRes.ok) {
                         const jsonResponse = await fileRes.json();
                         
-                        // Standard base64 body payload transformation decoding
                         const rawContent = atob(jsonResponse.content.replace(/\s/g, ''));
                         const parsed = rawContent.toLowerCase().replace(/[\x00-\x1F\x7F-\x9F]/g, "").trim();
 
@@ -593,23 +594,33 @@
         });
 
         document.getElementById("c-all").innerText = counts.all;
-        document.getElementById("c-active").innerText = counts.active;
-        document.getElementById("c-banned").innerText = counts.banned;
-        document.getElementById("c-nodata").innerText = counts["no-data"];
-        document.getElementById("c-unknown").innerText = counts.unknown;
+        document.getElementById("c-all-active").innerText = counts.active;
+        document.getElementById("c-all-banned").innerText = counts.banned;
+        document.getElementById("c-all-nodata").innerText = counts["no-data"];
+        document.getElementById("c-all-unknown").innerText = counts.unknown;
     }
 
     function applyFilter(type) {
         activeFilter = type;
         document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
-        document.getElementById(`f-${type === "no-data" ? "nodata" : type}`).classList.add("active");
+        
+        let targetId = "f-all";
+        if (type === "active") targetId = "f-active";
+        if (type === "banned") targetId = "f-banned";
+        if (type === "no-data") targetId = "f-nodata";
+        if (type === "unknown") targetId = "f-unknown";
+        
+        const pill = document.getElementById(targetId);
+        if (pill) pill.classList.add("active");
+        
         applyFilterVisibility();
     }
 
     function applyFilterVisibility() {
+        if (!dataList || dataList.length === 0) return;
         dataList.forEach(item => {
             let show = (activeFilter === "all") || (item.status === activeFilter) || (activeFilter === "no-data" && item.status.startsWith("err"));
-            item.element.style.display = show ? "flex" : "none";
+            if (item.element) item.element.style.display = show ? "flex" : "none";
         });
     }
 </script>

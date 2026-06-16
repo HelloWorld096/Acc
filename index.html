@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status Monitor</title>
+    <style>
+        /* System Toggled Minimal Design Tokens */
+        :root {
+            --bg: #ffffff;
+            --surface: #f8fafc;
+            --border: #cbd5e1;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            
+            --active-accent: #16a34a;
+            --banned-accent: #dc2626;
+            --nodata-accent: #d97706;
+            --unknown-accent: #64748b;
+            
+            --active-bg: #f0fdf4;
+            --banned-bg: #fef2f2;
+            --nodata-bg: #fffbeb;
+            --unknown-bg: #f8fafc;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0b0f19;
+                --surface: #151b26;
+                --border: #475569;
+                --text: #f1f5f9;
+                --text-muted: #94a3b8;
+
+                --active-accent: #4ade80;
+                --banned-accent: #f87171;
+                --nodata-accent: #fbbf24;
+                --unknown-accent: #94a3b8;
+
+                --active-bg: rgba(74, 222, 128, 0.06);
+                --banned-bg: rgba(248, 113, 113, 0.06);
+                --nodata-bg: rgba(251, 191, 36, 0.06);
+                --unknown-bg: rgba(148, 163, 184, 0.06);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding: 1rem;
+            line-height: 1.4;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            padding-bottom: 4rem;
+        }
+
+        header {
+            margin: 1rem 0 1.5rem 0;
+        }
+
+        h1 {
+            font-size: 1.35rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .meta-text {
+            color: var(--text-muted);
+            font-size: 0.813rem;
+            margin-top: 0.15rem;
+            font-weight: 500;
+        }
+
+        .config-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .row {
+            display: flex;
+            gap: 0.75rem;
+            width: 100%;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            flex: 1;
+        }
+
+        .control-group label {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        select, input[type="text"], input[type="number"], input[type="password"] {
+            background: var(--bg);
+            border: 2px solid var(--border);
+            color: var(--text);
+            padding: 0.55rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            width: 100%;
+            transition: border-color 0.15s ease;
+        }
+
+        select {
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 12px;
+            padding-right: 2rem;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--text);
+        }
+
+        .range-fields {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        
+        .range-fields input {
+            text-align: center;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            user-select: none;
+            margin-top: 0.4rem;
+            font-weight: 500;
+        }
+
+        .toggle-container input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--text);
+            outline: 2px solid var(--border);
+            outline-offset: -2px;
+            border-radius: 4px;
+        }
+
+        button.sync-btn {
+            background: var(--text);
+            color: var(--bg);
+            border: none;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.15s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        button.sync-btn:hover {
+            opacity: 0.9;
+        }
+
+        .filters {
+            display: flex;
+            gap: 0.4rem;
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+            padding-bottom: 0.5rem;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .filters::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-pill {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            flex-shrink: 0;
+        }
+
+        .filter-pill.active {
+            background: var(--text);
+            border-color: var(--text);
+            color: var(--bg);
+        }
+
+        .pill-count {
+            font-weight: 600;
+            opacity: 0.6;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            aspect-ratio: 1.1 / 1;
+            text-decoration: none;
+            color: inherit;
+            transition: border-color 0.15s ease, transform 0.1s ease;
+        }
+
+        .card:hover {
+            border-color: var(--text-muted);
+            transform: translateY(-1px);
+        }
+
+        .card-id {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .card-status {
+            font-size: 0.813rem;
+            font-weight: 600;
+            text-transform: capitalize;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .card-status::before {
+            content: '';
+            display: inline-block;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+        }
+
+        .is-active { background: var(--active-bg); border-color: rgba(22, 163, 74, 0.2); }
+        .is-active .card-status { color: var(--active-accent); }
+        .is-active .card-status::before { background: var(--active-accent); }
+
+        .is-banned { background: var(--banned-bg); border-color: rgba(220, 38, 38, 0.2); }
+        .is-banned .card-status { color: var(--banned-accent); }
+        .is-banned .card-status::before { background: var(--banned-accent); }
+
+        .is-nodata { background: var(--nodata-bg); border-color: rgba(217, 119, 6, 0.2); }
+        .is-nodata .card-status { color: var(--nodata-accent); }
+        .is-nodata .card-status::before { background: var(--nodata-accent); }
+
+        .is-unknown { background: var(--unknown-bg); border-color: var(--border); }
+        .is-unknown .card-status { color: var(--unknown-accent); }
+        .is-unknown .card-status::before { background: var(--unknown-accent); }
+
+        .msg-container {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 500;
+            line-height: 1.6;
+        }
+
+        .error-box {
+            color: #dc2626;
+            background: #fef2f2;
+            border: 1px dashed #f87171;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 0.5rem;
+            text-align: left;
+            font-family: monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .error-box {
+                color: #f87171;
+                background: rgba(248, 113, 113, 0.05);
+                border-color: rgba(248, 113, 113, 0.3);
+            }
+        }
+
+        @media (min-width: 600px) {
+            body { padding: 3rem 2rem; }
+            .config-bar { flex-direction: row; align-items: flex-end; }
+            .row { width: auto; flex: 1; }
+            button.sync-btn { width: auto; padding: 0.55rem 1.5rem; }
+            .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.75rem; }
+            .card { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <header>
+        <h1 id="repo-title">Loading Repository...</h1>
+        <div class="meta-text" id="sync-status">Status monitor idle</div>
+    </header>
+
+    <div class="config-bar">
+        <div class="row">
+            <div class="control-group" style="flex: 1.3;">
+                <label for="fetch-mode">Strategy</label>
+                <select id="fetch-mode" onchange="toggleInputs()">
+                    <option value="scan">Auto-Scan Repo</option>
+                    <option value="range">Manual Range</option>
+                </select>
+            </div>
+
+            <div id="range-inputs" class="control-group range-fields" style="display: none;">
+                <div style="display:flex; flex-direction:column; gap:0.35rem; flex:1;">
+                    <label>From</label>
+                    <input type="number" id="start-id" value="1" min="1">
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.35rem; flex:1;">
+                    <label>To</label>
+                    <input type="number" id="end-id" value="20" min="1">
+                </div>
+            </div>
+        </div>
+
+        <div class="row" style="flex-direction: column; gap: 0.5rem;">
+            <div class="control-group">
+                <label for="gh-token">GitHub Token (Required only if repo is Private)</label>
+                <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx or github_pat_xxxx" oninput="saveCredentials()">
+            </div>
+            <label class="toggle-container">
+                <input type="checkbox" id="use-pat" onchange="saveCredentials()">
+                <span>Authenticate API requests using this token</span>
+            </label>
+        </div>
+
+        <button class="sync-btn" onclick="fetchRepository()">Sync Matrix</button>
+    </div>
+
+    <div class="filters">
+        <button class="filter-pill active" onclick="applyFilter('all')" id="f-all">All <span class="pill-count" id="c-all">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('active')" id="f-active">Active <span class="pill-count" id="c-active">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('banned')" id="f-banned">Banned <span class="pill-count" id="c-banned">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('no-data')" id="f-nodata">No Data <span class="pill-count" id="c-nodata">0</span></button>
+        <button class="filter-pill" onclick="applyFilter('unknown')" id="f-unknown">Unknown <span class="pill-count" id="c-unknown">0</span></button>
+    </div>
+
+    <div class="grid" id="grid">
+        <div class="msg-container">Click Sync Matrix to pull live data updates.</div>
+    </div>
+</div>
+
+<script>
+    // Dynamically derive environment context from target deployment URL parameters
+    let owner = "HelloWorld096";
+    let repo = "Acc";
+
+    // Auto-parse parameters if hosted directly inside standard GitHub Pages domains
+    const pathParts = window.location.pathname.split('/').filter(p => p);
+    if (window.location.hostname.endsWith("github.io") && pathParts.length > 0) {
+        owner = window.location.hostname.split('.')[0];
+        repo = pathParts[0];
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("repo-title").innerText = `${owner}/${repo}`;
+        
+        const storedToken = localStorage.getItem("gh_pat") || "";
+        const storedToggle = localStorage.getItem("gh_use_pat") === "true";
+        
+        document.getElementById("gh-token").value = storedToken;
+        document.getElementById("use-pat").checked = storedToggle;
+        
+        toggleInputs();
+    });
+
+    function toggleInputs() {
+        const mode = document.getElementById("fetch-mode").value;
+        document.getElementById("range-inputs").style.display = (mode === "range") ? "flex" : "none";
+    }
+
+    function saveCredentials() {
+        const tokenVal = document.getElementById("gh-token").value.trim();
+        const checkboxVal = document.getElementById("use-pat").checked;
+        
+        localStorage.setItem("gh_pat", tokenVal);
+        localStorage.setItem("gh_use_pat", checkboxVal);
+    }
+
+    function getHeaders() {
+        const token = document.getElementById("gh-token").value.trim();
+        const usePat = document.getElementById("use-pat").checked;
+        
+        let headers = {
+            "Accept": "application/vnd.github.v3+json"
+        };
+
+        if (usePat && token) {
+            headers["Authorization"] = `token ${token}`;
+        }
+        
+        return headers;
+    }
+
+    async function fetchRepository() {
+        const grid = document.getElementById("grid");
+        const status = document.getElementById("sync-status");
+        const mode = document.getElementById("fetch-mode").value;
+        const useToken = document.getElementById("use-pat").checked;
+        const tokenVal = document.getElementById("gh-token").value.trim();
+
+        grid.innerHTML = `<div class="msg-container">Querying live data states...</div>`;
+        status.innerText = "Querying files...";
+        dataList = [];
+        updateMetrics();
+
+        try {
+            let targets = [];
+
+            if (useToken && !tokenVal) {
+                throw new Error("Validation Error: Authentication checkbox checked, but the Token text area is empty.");
+            }
+
+            // Realtime Strategy: Query repository trees via API endpoints
+            if (mode === "scan") {
+                const url = `https://api.github.com/repos/${owner}/${repo}/contents/?t=${new Date().getTime()}`;
+                const res = await fetch(url, { headers: getHeaders() });
+
+                if (!res.ok) {
+                    let errContext = "";
+                    if (res.status === 401) errContext = "401 Unauthorized: Invalid or expired GitHub Access Token.";
+                    if (res.status === 404) errContext = "404 Not Found: Private repository access denied or repository paths changed.";
+                    if (res.status === 403) errContext = "403 Forbidden: API Request rate limits hit.";
+                    throw new Error(`${errContext || `HTTP Status ${res.status}`}\nMessage Details: ${res.statusText}`);
+                }
+                
+                const files = await res.json();
+                targets = files
+                    .filter(f => f.name.endsWith('.txt') && !isNaN(parseInt(f.name)))
+                    .map(f => ({
+                        id: parseInt(f.name),
+                        filename: f.name,
+                        url: f.url
+                    }))
+                    .sort((a, b) => a.id - b.id);
+            } else {
+                const start = parseInt(document.getElementById("start-id").value) || 1;
+                const end = parseInt(document.getElementById("end-id").value) || 20;
+                
+                for (let i = start; i <= end; i++) {
+                    const name = String(i).padStart(2, '0') + '.txt';
+                    targets.push({
+                        id: i,
+                        filename: name,
+                        url: `https://api.github.com/repos/${owner}/${repo}/contents/${name}`
+                    });
+                }
+            }
+
+            if (targets.length === 0) {
+                grid.innerHTML = `<div class="msg-container">No numerical tracked files (*.txt) found in the root directory.</div>`;
+                status.innerText = "Sync empty.";
+                return;
+            }
+
+            grid.innerHTML = "";
+            targets.forEach(item => {
+                const card = document.createElement("a");
+                card.className = "card is-unknown";
+                card.id = `card-${item.id}`;
+                card.target = "_blank";
+                card.href = `./${item.filename}`; // Direct relative anchor pathing for easy internal navigation
+                card.innerHTML = `
+                    <div class="card-id">${item.filename}</div>
+                    <div class="card-status">Loading</div>
+                `;
+                grid.appendChild(card);
+
+                dataList.push({ id: item.id, status: "unknown", element: card });
+            });
+
+            status.innerText = "Syncing matrix data streams...";
+
+            // Read the internal contents of the files using a dynamic runtime cache buster timestamp
+            await Promise.all(targets.map(async (target) => {
+                let statusText = "unknown";
+                let styleClass = "is-unknown";
+
+                try {
+                    const fileRes = await fetch(`${target.url}?cache_bust=${new Date().getTime()}`, { headers: getHeaders() });
+                    if (fileRes.ok) {
+                        const jsonResponse = await fileRes.json();
+                        
+                        // Standard base64 body payload transformation decoding
+                        const rawContent = atob(jsonResponse.content.replace(/\s/g, ''));
+                        const parsed = rawContent.toLowerCase().replace(/[\x00-\x1F\x7F-\x9F]/g, "").trim();
+
+                        if (parsed.includes("active")) { 
+                            statusText = "active"; 
+                            styleClass = "is-active"; 
+                        } else if (parsed.includes("banned")) { 
+                            statusText = "banned"; 
+                            styleClass = "is-banned"; 
+                        } else if (parsed.includes("no-data") || parsed.includes("nodata") || parsed === "") { 
+                            statusText = "no-data"; 
+                            styleClass = "is-nodata"; 
+                        } else { 
+                            statusText = parsed.substring(0, 12); 
+                            styleClass = "is-nodata"; 
+                        }
+                    } else {
+                        statusText = `err ${fileRes.status}`;
+                        styleClass = "is-nodata";
+                    }
+                } catch {
+                    statusText = "unknown";
+                    styleClass = "is-unknown";
+                }
+
+                const entry = dataList.find(d => d.id === target.id);
+                if (entry) {
+                    entry.status = statusText;
+                    entry.element.className = `card ${styleClass}`;
+                    entry.element.querySelector(".card-status").innerText = statusText;
+                }
+                updateMetrics();
+            }));
+
+            status.innerText = "Synced";
+            applyFilterVisibility();
+
+        } catch (err) {
+            grid.innerHTML = `
+                <div class="msg-container" style="color: #dc2626;">
+                    <strong>Synchronization Failed</strong><br>
+                    Could not query GitHub's file tree. Review error log details below:
+                    <div class="error-box">${err.message}</div>
+                </div>
+            `;
+            status.innerText = "Sync failed";
+        }
+    }
+
+    function updateMetrics() {
+        const counts = { all: dataList.length, active: 0, banned: 0, "no-data": 0, unknown: 0 };
+        
+        dataList.forEach(item => {
+            if (counts[item.status] !== undefined) counts[item.status]++;
+            else if (item.status !== "unknown" && !item.status.startsWith("err")) counts["no-data"]++;
+            else counts["unknown"]++;
+        });
+
+        document.getElementById("c-all").innerText = counts.all;
+        document.getElementById("c-active").innerText = counts.active;
+        document.getElementById("c-banned").innerText = counts.banned;
+        document.getElementById("c-nodata").innerText = counts["no-data"];
+        document.getElementById("c-unknown").innerText = counts.unknown;
+    }
+
+    function applyFilter(type) {
+        activeFilter = type;
+        document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
+        document.getElementById(`f-${type === "no-data" ? "nodata" : type}`).classList.add("active");
+        applyFilterVisibility();
+    }
+
+    function applyFilterVisibility() {
+        dataList.forEach(item => {
+            let show = (activeFilter === "all") || (item.status === activeFilter) || (activeFilter === "no-data" && item.status.startsWith("err"));
+            item.element.style.display = show ? "flex" : "none";
+        });
+    }
+</script>
+
+</body>
+</html>

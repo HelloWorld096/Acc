@@ -339,7 +339,7 @@
 
 <div class="wrapper">
     <header>
-        <h1 id="repo-title">Loading Repository...</h1>
+        <h1 id="repo-title">Loading Monitor...</h1>
         <div class="meta-text" id="sync-status">Status monitor idle</div>
     </header>
 
@@ -348,7 +348,7 @@
             <div class="control-group" style="flex: 1.3;">
                 <label for="fetch-mode">Strategy</label>
                 <select id="fetch-mode" onchange="toggleInputs()">
-                    <option value="scan">Auto-Scan Repo</option>
+                    <option value="scan">Auto-Scan Directory</option>
                     <option value="range">Manual Range</option>
                 </select>
             </div>
@@ -360,19 +360,19 @@
                 </div>
                 <div style="display:flex; flex-direction:column; gap:0.35rem; flex:1;">
                     <label>To</label>
-                    <input type="number" id="end-id" value="20" min="1">
+                    <input type="number" id="end-id" value="30" min="1">
                 </div>
             </div>
         </div>
 
         <div class="row" style="flex-direction: column; gap: 0.5rem;">
             <div class="control-group">
-                <label for="gh-token">GitHub Token (Required only if repo is Private)</label>
+                <label for="gh-token">GitHub Token (Optional: Used for Auto-Scan lists only)</label>
                 <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx or github_pat_xxxx" oninput="saveCredentials()">
             </div>
             <label class="toggle-container">
                 <input type="checkbox" id="use-pat" onchange="saveCredentials()">
-                <span>Authenticate API requests using this token</span>
+                <span>Authenticate tree scanning queries</span>
             </label>
         </div>
 
@@ -393,13 +393,12 @@
 </div>
 
 <script>
-    // Global scope initializations
     let owner = "HelloWorld096";
     let repo = "Acc";
     let dataList = [];
     let activeFilter = "all";
 
-    // Auto-parse parameters if hosted directly inside standard GitHub Pages domains
+    // Detect dynamic profile names when running on github.io domains automatically
     const pathParts = window.location.pathname.split('/').filter(p => p);
     if (window.location.hostname.endsWith("github.io") && pathParts.length > 0) {
         owner = window.location.hostname.split('.')[0];
@@ -435,14 +434,10 @@
         const token = document.getElementById("gh-token").value.trim();
         const usePat = document.getElementById("use-pat").checked;
         
-        let headers = {
-            "Accept": "application/vnd.github.v3+json"
-        };
-
+        let headers = { "Accept": "application/vnd.github.v3+json" };
         if (usePat && token) {
             headers["Authorization"] = `token ${token}`;
         }
-        
         return headers;
     }
 
@@ -450,32 +445,22 @@
         const grid = document.getElementById("grid");
         const status = document.getElementById("sync-status");
         const mode = document.getElementById("fetch-mode").value;
-        const useToken = document.getElementById("use-pat").checked;
-        const tokenVal = document.getElementById("gh-token").value.trim();
 
-        grid.innerHTML = `<div class="msg-container">Querying live data states...</div>`;
-        status.innerText = "Querying files...";
+        grid.innerHTML = `<div class="msg-container">Querying active matrix paths...</div>`;
+        status.innerText = "Discovering indices...";
         dataList = [];
         updateMetrics();
 
         try {
             let targets = [];
 
-            if (useToken && !tokenVal) {
-                throw new Error("Validation Error: Authentication checkbox checked, but the Token text area is empty.");
-            }
-
-            // Realtime Strategy: Query repository trees via API endpoints
             if (mode === "scan") {
+                // Discover file indices using structural repository APIs
                 const url = `https://api.github.com/repos/${owner}/${repo}/contents/?t=${new Date().getTime()}`;
                 const res = await fetch(url, { headers: getHeaders() });
 
                 if (!res.ok) {
-                    let errContext = "";
-                    if (res.status === 401) errContext = "401 Unauthorized: Invalid or expired GitHub Access Token.";
-                    if (res.status === 404) errContext = "404 Not Found: Private repository access denied or repository paths changed.";
-                    if (res.status === 403) errContext = "403 Forbidden: API Request rate limits hit.";
-                    throw new Error(`${errContext || `HTTP Status ${res.status}`}\nMessage Details: ${res.statusText}`);
+                    throw new Error(`Directory Indexing Failed (${res.status}).\nIf this repo is private, you need a Personal Access Token.\nMessage: ${res.statusText}`);
                 }
                 
                 const files = await res.json();
@@ -484,25 +469,25 @@
                     .map(f => ({
                         id: parseInt(f.name),
                         filename: f.name,
-                        url: f.url
+                        url: `./${f.name}` // Direct relative pathing asset access
                     }))
                     .sort((a, b) => a.id - b.id);
             } else {
                 const start = parseInt(document.getElementById("start-id").value) || 1;
-                const end = parseInt(document.getElementById("end-id").value) || 20;
+                const end = parseInt(document.getElementById("end-id").value) || 30;
                 
                 for (let i = start; i <= end; i++) {
                     const name = String(i).padStart(2, '0') + '.txt';
                     targets.push({
                         id: i,
                         filename: name,
-                        url: `https://api.github.com/repos/${owner}/${repo}/contents/${name}`
+                        url: `./${name}`
                     });
                 }
             }
 
             if (targets.length === 0) {
-                grid.innerHTML = `<div class="msg-container">No numerical tracked files (*.txt) found in the root directory.</div>`;
+                grid.innerHTML = `<div class="msg-container">No tracking files (*.txt) found in directory context.</div>`;
                 status.innerText = "Sync empty.";
                 return;
             }
@@ -513,7 +498,7 @@
                 card.className = "card is-unknown";
                 card.id = `card-${item.id}`;
                 card.target = "_blank";
-                card.href = `./${item.filename}`; 
+                card.href = item.url;
                 card.innerHTML = `
                     <div class="card-id">${item.filename}</div>
                     <div class="card-status">Loading</div>
@@ -523,20 +508,18 @@
                 dataList.push({ id: item.id, status: "unknown", element: card });
             });
 
-            status.innerText = "Syncing matrix data streams...";
+            status.innerText = "Streaming asset payloads...";
 
-            // Read the internal contents of the files using a dynamic runtime cache buster timestamp
+            // Parallel direct fetch of text files with millisecond cache-busting parameters
             await Promise.all(targets.map(async (target) => {
                 let statusText = "unknown";
                 let styleClass = "is-unknown";
 
                 try {
-                    const fileRes = await fetch(`${target.url}?cache_bust=${new Date().getTime()}`, { headers: getHeaders() });
+                    const fileRes = await fetch(`${target.url}?cache_bust=${new Date().getTime()}`);
                     if (fileRes.ok) {
-                        const jsonResponse = await fileRes.json();
-                        
-                        const rawContent = atob(jsonResponse.content.replace(/\s/g, ''));
-                        const parsed = rawContent.toLowerCase().replace(/[\x00-\x1F\x7F-\x9F]/g, "").trim();
+                        const rawContent = await fileRes.text();
+                        const parsed = rawContent.toLowerCase().trim();
 
                         if (parsed.includes("active")) { 
                             statusText = "active"; 
@@ -548,6 +531,7 @@
                             statusText = "no-data"; 
                             styleClass = "is-nodata"; 
                         } else { 
+                            // Custom state handler (e.g. text containing custom messages)
                             statusText = parsed.substring(0, 12); 
                             styleClass = "is-nodata"; 
                         }
@@ -576,7 +560,7 @@
             grid.innerHTML = `
                 <div class="msg-container" style="color: #dc2626;">
                     <strong>Synchronization Failed</strong><br>
-                    Could not query GitHub's file tree. Review error log details below:
+                    Could not query target file systems. Review log context below:
                     <div class="error-box">${err.message}</div>
                 </div>
             `;

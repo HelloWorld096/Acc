@@ -348,7 +348,7 @@
             <div class="control-group" style="flex: 1.3;">
                 <label for="fetch-mode">Strategy</label>
                 <select id="fetch-mode" onchange="toggleInputs()">
-                    <option value="scan">Auto-Scan Directory</option>
+                    <option value="scan">Auto-Scan Repo Directory</option>
                     <option value="range">Manual Range</option>
                 </select>
             </div>
@@ -367,12 +367,12 @@
 
         <div class="row" style="flex-direction: column; gap: 0.5rem;">
             <div class="control-group">
-                <label for="gh-token">GitHub Token (Optional: Used for Auto-Scan lists only)</label>
+                <label for="gh-token">GitHub Token (Optional: Required for Auto-Scan lists only)</label>
                 <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx or github_pat_xxxx" oninput="saveCredentials()">
             </div>
             <label class="toggle-container">
                 <input type="checkbox" id="use-pat" onchange="saveCredentials()">
-                <span>Authenticate tree scanning queries</span>
+                <span>Authenticate API root directory scanning</span>
             </label>
         </div>
 
@@ -393,12 +393,13 @@
 </div>
 
 <script>
+    // Global Context configuration tracking parameters
     let owner = "HelloWorld096";
     let repo = "Acc";
     let dataList = [];
     let activeFilter = "all";
 
-    // Detect dynamic profile names when running on github.io domains automatically
+    // Auto-parse parameters if hosted inside a standard production GitHub Pages deployment
     const pathParts = window.location.pathname.split('/').filter(p => p);
     if (window.location.hostname.endsWith("github.io") && pathParts.length > 0) {
         owner = window.location.hostname.split('.')[0];
@@ -446,7 +447,7 @@
         const status = document.getElementById("sync-status");
         const mode = document.getElementById("fetch-mode").value;
 
-        grid.innerHTML = `<div class="msg-container">Querying active matrix paths...</div>`;
+        grid.innerHTML = `<div class="msg-container">Connecting to data matrix...</div>`;
         status.innerText = "Discovering indices...";
         dataList = [];
         updateMetrics();
@@ -455,12 +456,12 @@
             let targets = [];
 
             if (mode === "scan") {
-                // Discover file indices using structural repository APIs
+                // Discover target file arrays using structural metadata APIs
                 const url = `https://api.github.com/repos/${owner}/${repo}/contents/?t=${new Date().getTime()}`;
                 const res = await fetch(url, { headers: getHeaders() });
 
                 if (!res.ok) {
-                    throw new Error(`Directory Indexing Failed (${res.status}).\nIf this repo is private, you need a Personal Access Token.\nMessage: ${res.statusText}`);
+                    throw new Error(`Directory Indexing Failed (${res.status}).\nIf this repository is private, verify your Access Token configuration details.\nMessage: ${res.statusText}`);
                 }
                 
                 const files = await res.json();
@@ -469,7 +470,8 @@
                     .map(f => ({
                         id: parseInt(f.name),
                         filename: f.name,
-                        url: `./${f.name}` // Direct relative pathing asset access
+                        // Swap individual entry targets out for raw user content servers directly
+                        url: `https://raw.githubusercontent.com/${owner}/${repo}/refs/heads/main/${f.name}`
                     }))
                     .sort((a, b) => a.id - b.id);
             } else {
@@ -481,13 +483,13 @@
                     targets.push({
                         id: i,
                         filename: name,
-                        url: `./${name}`
+                        url: `https://raw.githubusercontent.com/${owner}/${repo}/refs/heads/main/${name}`
                     });
                 }
             }
 
             if (targets.length === 0) {
-                grid.innerHTML = `<div class="msg-container">No tracking files (*.txt) found in directory context.</div>`;
+                grid.innerHTML = `<div class="msg-container">No tracking records found inside structural repository indices.</div>`;
                 status.innerText = "Sync empty.";
                 return;
             }
@@ -508,15 +510,15 @@
                 dataList.push({ id: item.id, status: "unknown", element: card });
             });
 
-            status.innerText = "Streaming asset payloads...";
+            status.innerText = "Streaming live payloads...";
 
-            // Parallel direct fetch of text files with millisecond cache-busting parameters
+            // Parallel file read utilizing cache-busting directly over raw.githubusercontent domains
             await Promise.all(targets.map(async (target) => {
                 let statusText = "unknown";
                 let styleClass = "is-unknown";
 
                 try {
-                    const fileRes = await fetch(`${target.url}?cache_bust=${new Date().getTime()}`);
+                    const fileRes = await fetch(`${target.url}?nocache=${new Date().getTime()}`);
                     if (fileRes.ok) {
                         const rawContent = await fileRes.text();
                         const parsed = rawContent.toLowerCase().trim();
@@ -531,7 +533,6 @@
                             statusText = "no-data"; 
                             styleClass = "is-nodata"; 
                         } else { 
-                            // Custom state handler (e.g. text containing custom messages)
                             statusText = parsed.substring(0, 12); 
                             styleClass = "is-nodata"; 
                         }
@@ -560,7 +561,7 @@
             grid.innerHTML = `
                 <div class="msg-container" style="color: #dc2626;">
                     <strong>Synchronization Failed</strong><br>
-                    Could not query target file systems. Review log context below:
+                    Could not map raw data structures. Review log details:
                     <div class="error-box">${err.message}</div>
                 </div>
             `;
